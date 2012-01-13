@@ -1,6 +1,11 @@
 package HTML::ParseBrowser;
+
+use strict;
+use warnings;
+
 use vars ('%lang','$VERSION');
-$VERSION = 1;
+use vars qw($AUTOLOAD);
+$VERSION = '1.01';
 
 %lang = ('en' => 'English',
          'de' => 'German',
@@ -8,10 +13,11 @@ $VERSION = 1;
          'es' => 'Spanish',
          'it' => 'Italian',
          'dn' => 'Danish',
-         'jp' => 'Japanese');
+         'jp' => 'Japanese',
+         'ru' => 'Russian');
 
 sub new {
-    my $class = shift;
+    my $class   = shift;
     my $browser = {};
     bless $browser, ref $class || $class;
     $browser->Parse(shift);
@@ -19,8 +25,9 @@ sub new {
 }
 
 sub Parse {
-    my $browser = shift;
+    my $browser   = shift;
     my $useragent = shift;
+    my $version;
     delete $browser->{$_} for keys %{$browser};
     return undef unless $useragent;
     return undef if $useragent eq '-';
@@ -32,26 +39,43 @@ sub Parse {
         push @{$browser->{langs}}, $1;
     }
 
-    if ($useragent =~ s/\((.*)\)//) {
-        $browser->{detail} = $1;
+    while ($useragent =~ /\((.*?)\)/) {
+        $browser->{detail} .= ' ' if defined($browser->{detail});
+        $browser->{detail} .= $1;
+        $useragent =~ s/\((.*?)\)//;
+    }
+    if (defined($browser->{detail})) {
+        $browser->{properties} = [split /;\s+/, $browser->{detail}];
     }
 
     $browser->{useragents} = [grep /\//, split /\s+/, $useragent];
-    $browser->{properties} = [split /;\s+/, $browser->{detail}];
 
-    for (@{$browser->{useragents}}) {
-        my ($br, $ver) = split /\//;
-        $browser->{name} = $br;
-        $browser->{version}->{v} = $ver;
-        ($browser->{version}->{major}, $browser->{version}->{minor}) = split /\./, $ver, 2;
-        last if lc $br eq 'lynx';
-
+    if ($useragent =~ m!\bVersion/((\d+)\.(\d+)\S*) Safari/!) {
+        $browser->{name}             = 'Safari';
+        $browser->{version}->{v}     = $1;
+        $browser->{version}->{major} = $2;
+        $browser->{version}->{minor} = $3;
+    } elsif ($useragent =~ m!Opera/.*Version/((\d+)\.(\d+)\S*)$!) {
+        $browser->{name}             = 'Opera';
+        $browser->{version}->{v}     = $1;
+        $browser->{version}->{major} = $2;
+        $browser->{version}->{minor} = $3;
+    } else {
+        for (@{$browser->{useragents}}) {
+            my ($br, $ver) = split /\//;
+            $browser->{name} = $br;
+            $browser->{version}->{v} = $ver;
+            ($browser->{version}->{major}, $browser->{version}->{minor}) = split /\./, $ver, 2;
+            last if lc($br) eq 'lynx';
+            last if lc($br) eq 'chrome';
+            last if lc($br) eq 'opera';
+        }
     }
 
     for (@{$browser->{properties}}) {
         /compatible/i and next;
 
-        unless (lc $browser->{name} eq 'webtv') {
+        unless (lc($browser->{name}) eq 'webtv' || lc($browser->{name}) eq 'opera') {
             /^MSIE (.*)$/ and do {
                 $browser->{name} = 'MSIE';
                 $browser->{version}->{v} = $1;
@@ -79,25 +103,21 @@ sub Parse {
                 (undef, $browser->{osvers}) = split / /, $_, 2;
                 if ($browser->{osvers} =~ /^NT/) {
                     $browser->{ostype} = 'Windows NT';
-                    (undef, $browser->{osvers}) =
-                      split / /, $browser->{osvers}, 2;
-                    if ($browser->{osvers} >= 5) {
-                        if ($browser->{osvers} >= 5.1) {
-                            if ($browser->{osvers} >= 6) {
-                                if ($browser->{osvers} >= 6.06) {
-                                    $browser->{osvers} = 'Server 2008';
-                                }
-                                else {
-                                    $browser->{osvers} = 'Vista';
-                                }
-                            }
-                            else {
-                                $browser->{osvers} = 'XP';
-                            }
-                        }
-                        else {
-                            $browser->{osvers} = '2000';
-                        }
+                    # (undef, $version) = split / /, $browser->{osvers}, 2;
+                    (undef, $version) = split / /, $browser->{osvers};
+                    $browser->{osvers} = $version;
+                    if ($version >= 6.2) {
+                        $browser->{osvers} = '8';
+                    } elsif ($version >= 6.1) {
+                        $browser->{osvers} = '7';
+                    } elsif ($version >= 6.06) {
+                        $browser->{osvers} = 'Server 2008';
+                    } elsif ($version >= 6.0) {
+                        $browser->{osvers} = 'Vista';
+                    } elsif ($version >= 5.1) {
+                        $browser->{osvers} = 'XP';
+                    } elsif ($version >= 5.0) {
+                        $browser->{osvers} = '2000';
                     }
                 }
             }
@@ -144,8 +164,8 @@ sub Parse {
             if (/^$lang\-/) {
                 my $l;
                 ($l, undef) = split /\-/;
-                push @{$browser->{languages}}, $lang{$l} || $1;
-                push @{$browser->{langs}}, $1;
+                push @{$browser->{languages}}, $lang{$l} || $l;
+                push @{$browser->{langs}}, $l;
             }
 
             push @{$browser->{languages}}, $lang{$_} if /^$lang$/;
@@ -181,10 +201,15 @@ sub Parse {
         $langs_in{$_}++;
     }
 
-    ($browser->{lang}) = sort {$langs_in{$a} <=> $langs_in{$b}} keys %langs_in;
-    $browser->{language} = $lang{$browser->{lang}} || $browser->{lang};
-    delete $browser->{language} unless $browser->{language};
+    if (int(keys %langs_in) > 0) {
+        ($browser->{lang}) = sort {$langs_in{$a} <=> $langs_in{$b}} keys %langs_in;
+        $browser->{language} = $lang{$browser->{lang}} || $browser->{lang};
+        # delete $browser->{language} unless $browser->{language};
+    }
     return $browser;
+}
+
+sub DESTROY {
 }
 
 sub AUTOLOAD {
@@ -206,31 +231,28 @@ __END__
 
 =head1 NAME
 
-HTML::ParseBrowser - Simple interface for User Agent string parsing.
+HTML::ParseBrowser - Simple interface for User-Agent string parsing
 
 =head1 SYNOPSIS
 
   use HTML::ParseBrowser;
-  my $ua = HTML::ParseBrowser->new($ENV{HTTP_USER_AGENT});
-  my $browsername = $ua->name;
-
-  my $browser = 'Mozilla/4.0 (compatible; MSIE 5.5; Windows 98; Win 9x 4.90)';
-                    # BTW: That's IE 5.5 on Windows ME
-  $ua->Parse($new_browser);
-  $browsername = $ua->name;
-  my $os = $ua->os_type;
-
-  $browser = 'Mozilla 3.0 - Mozilla/3.0 (Linux 2.2.19 i686; U) Opera 5.0  [en]';
-                 # BTW: that's Opera 5.0 on Linux, English
-  $ua->Parse($new_browser);
-  my $lingo = $ua->language;
+  
+  # Opera 6 on Windows 98, French
+  my $uastring = 'Mozilla/4.0 (compatible; MSIE 5.0; Windows 98) Opera 6.0  [fr]';
+  
+  my $ua = HTML::ParseBrowser->new($uastring);
+  print "Browser  : ", $ua->name, "\n";
+  print "Version  : ", $ua->v, "\n";
+  print "OS       : ", $ua->os, "\n";
+  print "Language : ", $ua->language, "\n";
 
 =head1 DESCRIPTION
 
-The HTML::ParseBrowser is an Object-Oriented interface for parsing a User Agent
-string. It provides simple autoloaded methods for retrieving both the actual
-values stored in the interpreted (and, so far, correct) information that these
-wildly varying and nonstandardised strings attempt to convey.
+HTML::ParseBrowser is a module for parsing a User-Agent string, and providing access to
+parts of the string, such as browser name, version, and operating system.
+Some of the returned values are exactly as they appeared in the User-Agent string,
+and others are interpreted; for example Internet Explorer identifies itself as B<MSIE>,
+but the B<name> method will return B<Internet Explorer>.
 
 It provides the following methods:
 
@@ -251,26 +273,16 @@ If called without a true argument or with the argument '-' Parse() will simply
 depopulate the object and return undef. (This is useful for parsing logs, which
 often fill in a '-' for a null value.)
 
-=item Case-insensitive Access Methods and properties.
+=item Access methods
 
-Any of the methods below may be called. Properties (->{whatever}) are case
-sensitive and are lowercase. Called as methods (the preferred
-way ->whatever() ) they are NOT case sensitive. As a result you can say
-$ua->NAME, $ua->name, $ua->Name, or $ua->nAMe if you so feel inclined.
+The following methods are used to access different parts of the User-Agent string.
 
-If an item is not able to be parsed, the methods will return undef. Calling
-things in the method way will not cause autovivification, while checking as
-properties without using exists() in a conditional first will cause
-autovivifivation first (and, in the case of the version subproperties, even
-exists() will do so - Ack!)
+If the particular piece of information wasn't included in the User-Agent string
+provided, or it couldn't be parsed, then the relevant method will return undef.
 
-Note that in some cases it is absolutely impossible to tell certain details.
-Nothing is guaranteed to be present -- not even 'name'.
-
-It is also possible for someone to make their browser lie about the operating
-system they are using (especially with spiders) -- and in some cases, they may
-even be using more than one at the same time (like running Konqueror through an
-X-Windows client on a Windows box).
+Also, not that some browsers let the user change the User-Agent string,
+as do many libraries. So there is no guarantee that a User-Agent string you
+find in a logfile is valid, or makes sense.
 
 =back
 
@@ -278,14 +290,13 @@ X-Windows client on a Windows box).
 
 =item user_agent()
 
-The actual original User Agent string you passed Parse() or new()
+The original User-Agent string you passed to Parse() or new().
 
 =item languages()
 
 Returns an arrayref of all languages recognised by placement and context in the
 User_Agent string. Uses English names of languages encountered where
-comprehended, ANSI code otherwise. Feel free to add to the hash to cover more
-languages.
+comprehended, or the ISO two-letter language code otherwise.
 
 =item language()
 
@@ -295,20 +306,17 @@ chooses the one most repeated or the first encountered on any tie.
 
 =item langs()
 
-Like languages() above, except uses ANSI standard language codes always.
+Like languages() above, except uses ISO standard language codes always.
 
 =item lang()
 
-Like language() above, but only containing the ANSI language code
+Like language() above, but only containing the ISO language code.
 
 =item detail()
 
-The stuff inside any parentheses encountered. (Note that if for some really
-weird reason some User Agent string has two sets of parens, this string will
-contain the entire contents from the first paren to the last, including any
-intervening close and open parens. Anyway, they aren't supposed to do that, and
-such a case would likely only exist in cases of spiders and homebrewed
-browsers.)
+The stuff inside any parentheses encountered. If the User-Agent string contains
+more than one set of parentheses, this method will return the result of concatenating
+all of the. This seems sub-optimal, but works for the moment.
 
 =item useragents()
 
@@ -322,29 +330,26 @@ Returns an arrayref of the stuff in details() broken up by /;\s+/
 
 =item name()
 
-The _interpreted_ name of the browser. This value may not actually appear
-anywhere inside the string you handed it. Netscape Communicator provides a good
-example of this oddness.
+The I<interpreted> name of the browser. This value may not actually appear
+anywhere inside the string you handed it. For example, Internet Explorer identifies
+itself in the User-Agent string as B<MSIE>,
+but this method will return B<Internet Explorer>.
 
 =item version()
 
-Returns a hashref containing v, major, and minor, as explained below and keyed
-as such.
+Returns a hashref containing v, major, and minor, as explained below and keyed as such.
 
 =item v()
 
-The full version of the useragent (i.e. '5.6.0')
-To access as a property, grab $ua->{version}->{v}
+The full version of the useragent (i.e. '5.6.0').
 
 =item major()
 
-The Major version number (i.e. '5')
-To access as a property, grab $ua->{version}->{major}
+The Major version number. For Safari 5.1 this method would return 5.
 
 =item minor()
 
-The Minor version number (i.e. '6.0')
-To access as a property, grab $ua->{version}->{minor}
+The Minor version number. For Opera 9.0.1, this method would return 0.
 
 =item os()
 
@@ -352,13 +357,12 @@ The Operating System the browser is running on.
 
 =item ostype()
 
-The _interpreted_ type of the Operating System. For instance, 'Windows' rather
-than 'Windows 9x 4.90'
+The I<interpreted> type of the Operating System.
+For instance, 'Windows' rather than 'Windows 9x 4.90'
 
 =item osvers()
 
-The _interpreted_ version of the Operating System. For instance, 'ME' rather
-than '9x 4.90'
+The I<interpreted> version of the Operating System. For instance, 'ME' rather than '9x 4.90'
 
 Note: Windows NT versions below 5 will show up with ostype 'Windows NT' and
 osvers as appropriate. Windows NT version 5 will show up as ostype
@@ -368,7 +372,7 @@ as 'Server 2008'.
 
 =item osarc()
 
-While rarely defined, some User Agent strings happily announce some detail or
+While rarely defined, some User-Agent strings happily announce some detail or
 another about the Architecture they are running under. If this happens, it will
 be reflected here. Linux ('i686') and Mac ('PPC') are more likely than Windows
 to do this, strangely.
@@ -383,19 +387,33 @@ up stuck with that piece of shit.
 
 =head1 SEE ALSO
 
-=head2 Modules
+I have done a review of all CPAN modules for parsing the User-Agent string.
+If you have a specific need, it may be worth reading the review, to find
+the best match:
 
-HTTP::BrowserDetect (similar goal but with an opposite approach)
+http://blogs.perl.org/users/neilb/2011/10/cpan-modules-for-parsing-user-agent-strings.html
 
-I'm thinking 'see also' in the sense of bad example. No offence to that module's
-writer, but "Is this IE? Yay! Is this 7? Yay" is a bass-ackwards approach to how
-to detect useragents. It's inherently unuseful. I wrote this deliberately because
-I couldn't stand that approach, because 'What is this?' made more sense to me, and
-moreover because it's robust. It's been seven years since the last update, and it
-just finally really kinda needed one (because Konqueror and a few others weren't
-detecting quite right on the name() results).
+In brief, the following modules are worth considering:
 
-=head2 Web Sites
+=over
+
+=item Parse::HTTP::UserAgent
+
+Has best overall coverage of different browsers and other user agents.
+
+=item HTTP::DetectUserAgent
+
+Not as good coverage, but handles modern browsers well, and is the
+fastest module, so if you're processing large logfiles, this might
+be the best choice.
+
+=item HTTP::BrowserDetect
+
+Poorest coverage of the three modules listed here, and doesn't do well at
+recognising version numbers. It's the best module for detecting whether
+a given agent is a robot/crawler though.
+
+=back
 
 =head1 AUTHOR
 
@@ -403,11 +421,12 @@ Dodger (aka Sean Cannon)
 
 =head1 COPYRIGHT
 
-The HTML::ParseBrowser module and code therein is
-Copyright (c)2001 Sean Cannon, Bensalem, Pennsylvania,
-             2008 Sean Cannon, San Jose, California
+Changes in 1.01 and later are Copyright (C) 2012, Neil Bowers.
 
-All rights reserved. All rites reversed.
+The HTML::ParseBrowser module and code therein is
+Copyright (c) 2001-2008 Sean Cannon
+
+All rights reserved. All rights reversed.
 
 You may distribute under the terms of either the GNU General Public
 License or the Artistic License, as specified in the Perl README file.
