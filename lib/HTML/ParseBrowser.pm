@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use vars qw($AUTOLOAD);
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my %lang =
 (
@@ -71,6 +71,17 @@ sub Parse {
             $browser->{version}->{major} = $2;
             $browser->{version}->{minor} = $4 if defined($4) && $4 ne '';
         }
+    }
+    elsif ($ua_string =~ m!Mozilla/5.0 \(.*?Windows.*?; rv:((\d+)\.(\d+))\) like Gecko!) {
+        $browser->{name} = 'MSIE';
+        $browser->{version}->{v} = $1;
+        $browser->{version}->{major} = $2;
+        $browser->{version}->{minor} = $3;
+    } elsif ($useragent =~ m!OPR/((\d+)\.(\d+)\.\d+\.\d+)!) {
+        $browser->{name}             = 'Opera';
+        $browser->{version}->{v}     = $1;
+        $browser->{version}->{major} = $2;
+        $browser->{version}->{minor} = $3;
     } elsif ($useragent =~ m!\bVersion/((\d+)\.(\d+)\S*) Safari/!) {
         $browser->{name}             = 'Safari';
         $browser->{version}->{v}     = $1;
@@ -138,7 +149,9 @@ sub Parse {
             if (/Windows NT\s*((\d+)(\.\d+)?)/ || /^WinNT((\d+)(\.\d+)?)/) {
                 $browser->{ostype} = 'Windows NT';
                 $version = $1;
-                if ($version >= 6.2) {
+                if ($version >= 6.3) {
+                    $browser->{osvers} = '8.1';
+                } elsif ($version >= 6.2) {
                     $browser->{osvers} = '8';
                 } elsif ($version >= 6.1) {
                     $browser->{osvers} = '7';
@@ -433,18 +446,22 @@ a given agent is a robot/crawler though.
 
 =back
 
+=head1 REPOSITORY
+
+L<https://github.com/neilbowers/HTML-ParseBrowser>
+ 
 =head1 AUTHOR
 
 Dodger (aka Sean Cannon)
 
 Recent changes by Neil Bowers.
 
-=head1 COPYRIGHT
-
-Changes in 1.01 and later are Copyright (C) 2012, Neil Bowers.
+=head1 COPYRIGHT AND LICENSE
 
 The HTML::ParseBrowser module and code therein is
 Copyright (c) 2001-2008 Sean Cannon
+
+Changes in 1.01 and later are Copyright (C) 2012-2014, Neil Bowers.
 
 All rights reserved. All rights reversed.
 
