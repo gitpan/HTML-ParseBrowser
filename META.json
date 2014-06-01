@@ -4,7 +4,7 @@
       "Neil Bowers <neil@bowers.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.86, CPAN::Meta::Converter version 2.133380",
+   "generated_by" : "ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.141170",
    "keywords" : [
       "user-agent",
       "browser",
@@ -48,5 +48,5 @@
          "url" : "https://github.com/neilbowers/HTML-ParseBrowser"
       }
    },
-   "version" : "1.07"
+   "version" : "1.08"
 }
