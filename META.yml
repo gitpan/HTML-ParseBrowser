@@ -1,29 +1,25 @@
 ---
 abstract: 'Simple interface for User-Agent string parsing'
 author:
-  - 'Neil Bowers <neil@bowers.com>'
+  - 'Sean Cannon <dodger@cpan.org>'
+  - 'Neil Bowers <neilb@cpan.org>'
 build_requires:
-  ExtUtils::MakeMaker: '0'
+  Test::More: '0'
 configure_requires:
-  ExtUtils::MakeMaker: '0'
-dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.141170'
-keywords:
-  - user-agent
-  - browser
-  - 'browser detection'
+  ExtUtils::MakeMaker: '6.30'
+dynamic_config: 0
+generated_by: 'Dist::Zilla version 5.019, CPAN::Meta::Converter version 2.141170'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: '1.4'
 name: HTML-ParseBrowser
-no_index:
-  directory:
-    - t
-    - inc
 requires:
-  Test::More: '0'
-  perl: '5.004'
+  perl: '5.006'
+  strict: '0'
+  vars: '0'
+  warnings: '0'
 resources:
-  repository: https://github.com/neilbowers/HTML-ParseBrowser
-version: '1.08'
+  homepage: https://github.com/neilbowers/HTML-ParseBrowser
+  repository: https://github.com/neilbowers/HTML-ParseBrowser.git
+version: '1.09'
